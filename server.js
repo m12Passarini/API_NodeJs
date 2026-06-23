@@ -1,22 +1,11 @@
 // node --watch server.js
 
-import express from 'express'
+import app from './app.js';
 
-const app = express()
-app.use(express.json())
+const port = 3000;
 
-const users = []
+app.listen(port, () => {
+  console.log(`Servidor rodando em http://localhost:${port}`);
+});
 
-app.post("/users", (req, res) => {
- 
-    users.push(req.body)
 
-    res.status(201).json(req.body)
-})
-
-app.get("/users", (req, res) => {
-
-    res.status(200).json(users)
-})
-
-app.listen(3000)
