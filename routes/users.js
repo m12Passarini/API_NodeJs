@@ -1,21 +1,35 @@
 import { Router } from 'express';
 import { createError } from '../middleware/error.js';
+import pool from '../db/db.js';
 
 const router = Router();
 
-const users = []; // futuro bd
+router.post("/", async (req, res, next) => {
+    try {
+        const { name, email } = req.body;
 
-router.post("/", (req, res, next) => {
-    if (!req.body) {
-        return next(createError(400, "A data is required"));
+        if (!name || !email) {
+            return next(createError(400, "Name and email are required"));
+        }
+
+        const query = "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *";
+        const values = [name, email];
+
+       const result =  await pool.query(query, values);
+
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        next(err);
     }
-
-    users.push(req.body);
-    res.status(201).json(req.body);
 });
 
-router.get("/", (req, res) => {
-    res.status(200).json(users);
+router.get("/", async (req, res, next) => {
+    try {
+        const result = await pool.query("SELECT * FROM users");
+        res.status(200).json(result.rows);
+    } catch (err) {
+        next(err);
+    }
 });
 
 export default router;
