@@ -18,7 +18,7 @@ const loadApp = async (apiKeys = 'valid-key') => {
   return app;
 };
 
-describe('Auth and users routes', () => {
+describe('Auth and products routes', () => {
   beforeEach(() => {
     mockQuery.mockReset();
     delete process.env.API_KEYS;
@@ -28,8 +28,8 @@ describe('Auth and users routes', () => {
     const app = await loadApp('valid-key');
 
     const response = await request(app)
-      .post('/users')
-      .send({ name: 'Maria', email: 'maria@email.com' });
+      .post('/products')
+      .send({ name: 'Teclado', description: 'USB', price: 120, quantity: 10 });
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: 'api key required' });
@@ -39,83 +39,76 @@ describe('Auth and users routes', () => {
     const app = await loadApp('valid-key');
 
     const response = await request(app)
-      .post('/users')
+      .post('/products')
       .set('x-api-key', 'invalid-key')
-      .send({ name: 'Maria', email: 'maria@email.com' });
+      .send({ name: 'Teclado', description: 'USB', price: 120, quantity: 10 });
 
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ error: 'invalid api key' });
   });
 
-  it('creates a user when the request is valid', async () => {
+  it('creates a product and records the initial stock movement', async () => {
     const app = await loadApp('valid-key');
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ id: 1, name: 'Maria', email: 'maria@email.com' }],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [{ id: 1, name: 'Teclado', description: 'USB', price: '120.00', quantity: 10, created_at: '2026-07-09T00:00:00.000Z' }],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] });
 
     const response = await request(app)
-      .post('/users')
+      .post('/products')
       .set('x-api-key', 'valid-key')
-      .send({ name: 'Maria', email: 'maria@email.com' });
+      .send({ name: 'Teclado', description: 'USB', price: 120, quantity: 10 });
 
     expect(response.status).toBe(201);
-    expect(response.body).toEqual({ id: 1, name: 'Maria', email: 'maria@email.com' });
-    expect(mockQuery).toHaveBeenCalledWith(
-      'INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *',
-      ['Maria', 'maria@email.com'],
-    );
+    expect(response.body).toEqual({
+      id: 1,
+      name: 'Teclado',
+      description: 'USB',
+      price: '120.00',
+      quantity: 10,
+      created_at: '2026-07-09T00:00:00.000Z',
+    });
+    expect(mockQuery).toHaveBeenCalledTimes(2);
   });
 
-  it('returns 400 when the email is missing', async () => {
+  it('returns 400 when the required product fields are missing', async () => {
     const app = await loadApp('valid-key');
 
     const response = await request(app)
-      .post('/users')
+      .post('/products')
       .set('x-api-key', 'valid-key')
-      .send({ name: 'Maria' });
+      .send({ name: 'Teclado' });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: 'Name and email are required' });
+    expect(response.body).toEqual({ error: 'Name, description, price, and quantity are required' });
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('returns 400 when the email format is invalid', async () => {
+  it('returns 404 when trying to update an inexistent product', async () => {
     const app = await loadApp('valid-key');
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
     const response = await request(app)
-      .post('/users')
+      .put('/products')
       .set('x-api-key', 'valid-key')
-      .send({ name: 'Maria', email: 'maria.com' });
+      .send({ id: 99, name: 'Monitor', description: '24 polegadas', price: 500, quantity: 3 });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: 'Invalid email format' });
-    expect(mockQuery).not.toHaveBeenCalled();
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: 'Product not found' });
   });
 
-  it('returns 404 when trying to update an inexistent user', async () => {
+  it('returns 404 when trying to delete an inexistent product', async () => {
     const app = await loadApp('valid-key');
     mockQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
     const response = await request(app)
-      .put('/users')
+      .delete('/products')
       .set('x-api-key', 'valid-key')
-      .send({ emailOriginal: 'missing@email.com', name: 'Maria', email: 'maria2@email.com' });
+      .send({ id: 99 });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'User not found' });
-  });
-
-  it('returns 404 when trying to delete an inexistent user', async () => {
-    const app = await loadApp('valid-key');
-    mockQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
-
-    const response = await request(app)
-      .delete('/users')
-      .set('x-api-key', 'valid-key')
-      .send({ email: 'missing@email.com' });
-
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'User not found' });
+    expect(response.body).toEqual({ error: 'Product not found' });
   });
 
   it('returns 500 when the database fails', async () => {
@@ -123,56 +116,59 @@ describe('Auth and users routes', () => {
     mockQuery.mockRejectedValueOnce(new Error('Conexão perdida'));
 
     const response = await request(app)
-      .post('/users')
+      .post('/products')
       .set('x-api-key', 'valid-key')
-      .send({ name: 'Maria', email: 'maria@email.com' });
+      .send({ name: 'Teclado', description: 'USB', price: 120, quantity: 10 });
 
     expect(response.status).toBe(500);
     expect(response.body).toEqual({ error: 'Internal server error' });
   });
 
-  it('lists users', async () => {
+  it('lists products', async () => {
     const app = await loadApp('valid-key');
     mockQuery.mockResolvedValueOnce({
-      rows: [{ id: 1, name: 'Maria', email: 'maria@email.com' }],
+      rows: [{ id: 1, name: 'Teclado', description: 'USB', price: '120.00', quantity: 10, created_at: '2026-07-09T00:00:00.000Z' }],
     });
 
     const response = await request(app)
-      .get('/users')
+      .get('/products')
       .set('x-api-key', 'valid-key');
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual([{ id: 1, name: 'Maria', email: 'maria@email.com' }]);
+    expect(response.body).toEqual([{ id: 1, name: 'Teclado', description: 'USB', price: '120.00', quantity: 10, created_at: '2026-07-09T00:00:00.000Z' }]);
   });
 
-  it('updates a user and returns the changed record', async () => {
+  it('updates a product and records a stock movement when the quantity changes', async () => {
+    const app = await loadApp('valid-key');
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [{ id: 1, name: 'Teclado', description: 'USB', price: '120.00', quantity: 10, created_at: '2026-07-09T00:00:00.000Z' }],
+      })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 1, name: 'Teclado', description: 'USB', price: '130.00', quantity: 8, created_at: '2026-07-09T00:00:00.000Z' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
+    const response = await request(app)
+      .put('/products')
+      .set('x-api-key', 'valid-key')
+      .send({ id: 1, name: 'Teclado', description: 'USB', price: 130, quantity: 8, reason: 'Venda' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ id: 1, name: 'Teclado', description: 'USB', price: '130.00', quantity: 8, created_at: '2026-07-09T00:00:00.000Z' });
+    expect(mockQuery).toHaveBeenCalledTimes(3);
+  });
+
+  it('deletes a product', async () => {
     const app = await loadApp('valid-key');
     mockQuery.mockResolvedValueOnce({
-      rowCount: 1,
-      rows: [{ id: 1, name: 'Maria', email: 'maria2@email.com' }],
+      rows: [{ id: 1, name: 'Teclado', description: 'USB', price: '120.00', quantity: 10, created_at: '2026-07-09T00:00:00.000Z' }],
     });
 
     const response = await request(app)
-      .put('/users')
+      .delete('/products')
       .set('x-api-key', 'valid-key')
-      .send({ emailOriginal: 'maria@email.com', name: 'Maria', email: 'maria2@email.com' });
+      .send({ id: 1 });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ id: 1, name: 'Maria', email: 'maria2@email.com' });
-  });
-
-  it('deletes a user', async () => {
-    const app = await loadApp('valid-key');
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ id: 1, name: 'Maria', email: 'maria@email.com' }],
-    });
-
-    const response = await request(app)
-      .delete('/users')
-      .set('x-api-key', 'valid-key')
-      .send({ email: 'maria@email.com' });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ id: 1, name: 'Maria', email: 'maria@email.com' });
+    expect(response.body).toEqual({ id: 1, name: 'Teclado', description: 'USB', price: '120.00', quantity: 10, created_at: '2026-07-09T00:00:00.000Z' });
   });
 });
