@@ -3,23 +3,35 @@ import { createError } from '../middleware/error.js';
 import pool from '../db/db.js';
 
 const router = Router();
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const handleRouteError = (err, next) => {
+    if (err && err.status) {
+        return next(err);
+    }
+
+    return next(createError(500, 'Internal server error'));
+};
 
 router.post("/", async (req, res, next) => {
     try {
         const { name, email } = req.body;
 
         if (!name || !email) {
-            return next(createError(400, "Name and email are required"));
+            return next(createError(400, 'Name and email are required'));
+        }
+
+        if (!isValidEmail(email)) {
+            return next(createError(400, 'Invalid email format'));
         }
 
         const query = "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *";
         const values = [name, email];
 
-       const result =  await pool.query(query, values);
+        const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        next(err);
+        handleRouteError(err, next);
     }
 });
 
@@ -28,7 +40,7 @@ router.get("/", async (req, res, next) => {
         const result = await pool.query("SELECT * FROM users");
         res.status(200).json(result.rows);
     } catch (err) {
-        next(err);
+        handleRouteError(err, next);
     }
 });
 
@@ -51,13 +63,13 @@ router.put("/", async (req, res, next) => {
 
         res.status(200).json(result.rows[0]);
     } catch (err) {
-        next(err);
+        handleRouteError(err, next);
     }
 });
 
 router.delete("/", async (req, res, next) => {
     try {
-         const { email } = req.body;
+        const { email } = req.body;
 
         if (!email) {
             return next(createError(400, "Email is required"));
@@ -66,12 +78,16 @@ router.delete("/", async (req, res, next) => {
         const query = "DELETE FROM users WHERE email = $1 RETURNING *;";
         const values = [email];
 
-       const result =  await pool.query(query, values);
+        const result = await pool.query(query, values);
+
+        if (result.rowCount === 0) {
+            return next(createError(404, 'User not found'));
+        }
 
         res.status(200).json(result.rows[0]);
     } catch (err) {
-        next(err);
+        handleRouteError(err, next);
     }
-})
+});
 
 export default router;

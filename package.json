@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -14,5 +16,10 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "husky": "^9.1.6",
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.8"
   }
 }
