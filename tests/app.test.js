@@ -81,7 +81,7 @@ describe('Auth and products routes', () => {
       .send({ name: 'Teclado' });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: 'Name, description, price, and quantity are required' });
+    expect(response.body).toEqual({ error: 'name, description, price, and quantity are required' });
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
